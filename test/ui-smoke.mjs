@@ -35,7 +35,7 @@ async function req (path, opts) {
 try {
   const page = await req('');
   ok('面板 200', page.status === 200, String(page.status));
-  ok('页面标题 v2.7.0', page.text.includes('混合工作区') && page.text.includes('v2.7.0'));
+  ok('页面标题 v2.8.0', page.text.includes('混合工作区') && page.text.includes('v2.8.0'));
   ok('页面含记忆区块', page.text.includes('相关记忆') && page.text.includes('代表性问法'));
   ok('页面含路由 trace', page.text.includes('最近路由判定'));
   ok('页面含合并按钮', page.text.includes('data-op="merge"'));
@@ -61,6 +61,8 @@ try {
   ok('页面含全局档案/置顶/恢复', page.text.includes('全局档案') && page.text.includes('data-mem="pin"') && page.text.includes('data-mem="restore"'));
   ok('页面含导出/导入', page.text.includes('id="export"') && page.text.includes('id="import"'));
   ok('页面含策略与结论演变', page.text.includes('data-op="policy"') && page.text.includes('结论演变'));
+  ok('页面含试点会话隔离策略', page.text.includes('id="pol-iso"') && page.text.includes('独立子会话（实验）'));
+  ok('页面含隔离状态文案', page.text.includes('isolationPilot') && page.text.includes('仅提示词'));
   ok('页面 trace 含命中词', page.text.includes('命中词') && page.text.includes('问句词'));
   ok('页面自包含无外链', !page.text.includes('https://') && !page.text.includes('http://'));
   ok('面板复选框不被全局 min-width 撑宽', page.text.includes('input[type="checkbox"], input[type="radio"] { min-width:0;'));

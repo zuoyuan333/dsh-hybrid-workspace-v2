@@ -9,6 +9,7 @@ const SUITES = [
   'governance.test.mjs',
   'inbox.test.mjs',
   'inbox-executor.test.mjs',
+  'isolation.test.mjs',
   'lifecycle.test.mjs',
   'memory.test.mjs',
   'migrate.test.mjs',
