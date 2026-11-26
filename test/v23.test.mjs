@@ -188,7 +188,7 @@ try {
   ok('导入的工作区分到新 id', (imp.json.imported || []).every(x => !exported.workspaces.some(w => w.id === x.id)));
 
   const html = await (await fetch(base + '/')).text();
-  ok('页面版本 v2.8.0', html.includes('v2.8.0'));
+  ok('页面版本 v2.8.1', html.includes('v2.8.1'));
   ok('页面含导出/导入', html.includes('id="export"') && html.includes('id="import"') && html.includes('data-key'));
   ok('页面含策略与时间线', html.includes('data-op="policy"') && html.includes('结论演变'));
   ok('页面 trace 含命中词', html.includes('命中词') && html.includes('问句词'));

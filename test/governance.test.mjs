@@ -63,7 +63,7 @@ ok('空壳仍进入治理建议', snap.governance && snap.governance.candidates.
 ok('没有生成治理归档记录', !snap.archives.some(a => a.id === oldShell.id), JSON.stringify(snap.archives.map(a => [a.id, a.reason])));
 ok('快照暴露治理报告', snap.governance && typeof snap.governance.total === 'number' && Array.isArray(snap.governance.candidates), JSON.stringify(snap.governance?.counts));
 
-// 3) 手动批量归档 + /shell 页面。
+// 3) 手动批量归档 + 旧聊天页重定向。
 process.env.DSH_HOME = tempHome();
 const ctx2 = makeCtx({ webServer: true });
 const plugin2 = apply(ctx2, { debug: false, disableProcessHook: true, sweepIntervalMs: 0 });
@@ -85,11 +85,11 @@ try {
   ok('手动治理归档返回结果', Array.isArray(archived.archived) && archived.archived.some(x => x.id === manual.id) && archived.skipped.some(x => x.id === 'missing'), JSON.stringify(archived));
   const after = await fetch(base + '/api').then(r => r.json());
   ok('手动归档后工作区消失且归档保留', !after.workspaces.some(w => w.id === manual.id) && after.archives.some(a => a.id === manual.id && a.reason === 'governance'), JSON.stringify(after.archives.map(a => a.reason)));
-  const shell = await fetch(base + '/shell/');
-  const shellText = await shell.text();
-  ok('/shell 返回面板页', shell.status === 200 && shellText.includes('const SHELL') && shellText.includes('id="chat"'), String(shell.status));
-  const shellApi = await fetch(base + '/api').then(r => r.json());
-  ok('/shell 仍使用同一 API', Array.isArray(shellApi.workspaces), JSON.stringify(shellApi.workspaces?.length));
+  const shell = await fetch(base + '/shell/', { redirect: 'manual' });
+  ok('/shell 重定向到管理面板', shell.status === 302 && String(shell.headers.get('location') || '').endsWith('/hybrid-workspace/'), shell.status + ' ' + shell.headers.get('location'));
+  const shellPage = await fetch(base + '/shell/');
+  const shellText = await shellPage.text();
+  ok('/shell 最终显示管理面板', shellPage.status === 200 && shellText.includes('id="inbox"') && !shellText.includes('const SHELL'), String(shellPage.status));
 } finally {
   await new Promise(resolve => server.close(resolve));
 }

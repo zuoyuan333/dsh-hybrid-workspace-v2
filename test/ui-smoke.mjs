@@ -35,18 +35,19 @@ async function req (path, opts) {
 try {
   const page = await req('');
   ok('面板 200', page.status === 200, String(page.status));
-  ok('页面标题 v2.8.0', page.text.includes('混合工作区') && page.text.includes('v2.8.0'));
+  ok('页面标题 v2.8.1', page.text.includes('混合工作区') && page.text.includes('v2.8.1'));
   ok('页面含记忆区块', page.text.includes('相关记忆') && page.text.includes('代表性问法'));
   ok('页面含路由 trace', page.text.includes('最近路由判定'));
   ok('页面含合并按钮', page.text.includes('data-op="merge"'));
   ok('页面含归档/删除按钮', page.text.includes('data-op="archive"') && page.text.includes('data-op="delete"'));
   ok('页面不再含原生壳入口', !page.text.includes('id="open-shell"') && !page.text.includes('op: \'openShell\''));
+  ok('页面不再含工作区聊天壳', !page.text.includes('id="chat"') && !page.text.includes('const SHELL') && !page.text.includes('function initShell'));
   ok('页面含保存失败横幅', page.text.includes('id="save-warning"') && page.text.includes('function renderSaveWarning') && page.text.includes('状态保存失败'));
-  ok('聊天页是聊天式主界面', page.text.includes('id="chat"') && page.text.includes('id="chat-form"') && page.text.includes('function renderChat'));
-  ok('全部管理功能收进单一入口', page.text.includes('id="drawer-toggle"') && page.text.includes('id="console-drawer"') && page.text.includes('function initShell') && page.text.includes('body.appendChild(header)'));
-  ok('聊天发送进入收件箱并开始执行', page.text.includes("op: 'inboxAdd'") && page.text.includes("op: 'inboxRun', all: true"));
+  ok('管理面板保留统一收件箱', page.text.includes('id="inbox"') && page.text.includes("op: 'inboxAdd'") && page.text.includes("op: 'inboxRun'"));
+  const shellRedirect = await fetch(base + '/shell', { redirect: 'manual' });
+  ok('旧聊天页地址重定向到管理面板', shellRedirect.status === 302 && String(shellRedirect.headers.get('location') || '').endsWith('/hybrid-workspace/'), shellRedirect.status + ' ' + shellRedirect.headers.get('location'));
   const shellPage = await req('/shell');
-  ok('聊天页页面 200', shellPage.status === 200 && shellPage.text.includes('const SHELL') && shellPage.text.includes('id="chat"'), String(shellPage.status));
+  ok('重定向后的页面是管理面板', shellPage.status === 200 && shellPage.text.includes('id="inbox"') && !shellPage.text.includes('const SHELL'), String(shellPage.status));
   ok('页面含治理区', page.text.includes('id="governance"') && page.text.includes('工作区治理') && page.text.includes('data-gov="archive-picked"'));
   ok('页面含关闭面板按钮', page.text.includes('id="close-panel"'));
   ok('嵌入 iframe 时隐藏面板关闭', page.text.includes('window.self !== window.top') && page.text.includes('.embedded #close-panel') && !page.text.includes('.embedded #open-shell'));
