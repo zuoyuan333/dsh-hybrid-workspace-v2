@@ -105,6 +105,7 @@ scripts/build-shell-macos.sh
   name: dsh-hybrid-workspace-v2
   config:
     mode: hybrid            # hybrid | lexical | llm
+    llmJudge: false         # hybrid 默认纯本地；true 才把当前消息和候选交给模型裁决
     ignoreSubagents: true   # 子代理/PTC 子会话不建区、不记记忆
     contextMaxChars: 2400   # 单话题注入上限（字符），约 1.6k tokens；不是所有区相加
     memoryInject: 8         # 最多注入几条相关记忆
@@ -115,6 +116,8 @@ scripts/build-shell-macos.sh
     inboxExecutor: auto     # auto=DSH 子会话；simulate=只做本地模拟，不调用执行器
     inboxMaxConcurrent: 2   # 跨区并发上限，1-4
     inboxTaskTimeoutMs: 600000  # 单个任务超时，超时主动取消
+    inboxContextMaxChars: 2400  # 子会话注入的工作区上下文上限（字符）
+    inboxMemoryInject: 4        # 子会话最多注入几条工作区记忆
     governanceEnabled: true     # 是否运行工作区治理扫描
     governanceEmptyTtlMs: 604800000  # 空壳自动归档阈值（7 天）
     governanceStaleMs: 2592000000    # 无会话长期不活跃阈值（30 天）

@@ -21,9 +21,9 @@
 - `snapshot()` 将完整 `state.archives`（每个归档保留快照内容）放进 API 响应；`lib/ui.js` 每 30 秒轮询并全量重绘，但归档卡片只展示归档元数据。可将归档列表改为摘要，点开时再取快照详情，降低持续传输和渲染成本。
 - 版本升至 `2.6.3` 后，`test/load-check.mjs:20`、`test/ui-smoke.mjs:38`、`test/v23.test.mjs:191` 仍硬编码期待 `2.6.1`。按当前包与页面版本静态对照，这些断言已过期，完整 `npm test` 会因版本断言失败；应改为动态读取包版本或在发版时统一更新。未运行测试。
 - `test/all.mjs` 确实串行包含多组核心测试（含路由、状态损坏、治理、执行器、UI smoke、负载检查等）；在已跟踪文件中未见 CI 工作流配置，建议增加自动回归门禁，避免版本更新和多模块修改使断言漂移。
-- 状态保存失败风险更具体：`saveNow()` 捕获 `saveState()` 错误后只写日志，`flush()` 因此正常 resolve；管理 API 在 `await flush()` 后仍返回成功。磁盘满/权限/IO 错误时用户可能看到操作成功、重启后变更丢失，应让持久化失败可被调用方感知，并加重试/状态提示。
+- 状态保存失败风险更具体：`saveNow()` 捕获 `saveState()` 错误后只写日志，`flush()` 因此正常 resolve；管理 API 在 `await flush()` 后仍返回成功。磁盘满/权限/IO 错误时用户可能看到操作成功、重启后变更丢失，应让持久化失败可被调用方感知，并加重试/状态提示。（2026-11-26 更新：v2.6.4 已加入 `saveError`、`flush()` 报错和页面横幅。）
 - `log()`/`trace()` 对异步 `appendJsonl()` 仅使用同步 `try/catch`，`void` 掉的 rejected Promise 不会被该 catch 捕获；文件系统写失败可能形成 unhandled rejection。建议显式 `.catch()`、单队列写入并限长轮转。
-- `loadOrMigrate()` 的损坏文件 copy 失败被忽略后仍保存空状态；现有 `test/state-corrupt.test.mjs` 只覆盖备份成功场景，没有备份失败保护测试。
+- `loadOrMigrate()` 的损坏文件 copy 失败被忽略后仍保存空状态；现有 `test/state-corrupt.test.mjs` 只覆盖备份成功场景，没有备份失败保护测试。（2026-11-26 更新：v2.6.4 已改为备份失败时停止覆盖，并补测试。）
 - `scripts/install.mjs` 备份失败会被忽略；安装/卸载先改软链，再顺序直接写 profile `package.json` 和 `cordis.patch.yml`，任一步失败都可能留下半安装状态。建议 staging + 校验 + 原子替换/失败回滚，并将备份失败视为不可继续。
 - `shell-os.js:isLoopbackShellUrl()` 校验回环主机和路径但没有 scheme 白名单；Swift app 入口会先筛选 `http://`/`https://` 参数，因此目前非 HTTP scheme 会被原生壳忽略并退出。现有测试没有覆盖这个 JS/Swift 规则差异，可统一 fail-fast 并测试 `file:` 等 scheme。
 - `classify()` 把 `payload.signal` 传给 LLM stream，但插件层没有自己的超时/最大墙钟时间；响应性依赖宿主一定会提供有效 signal 或 provider 超时。可加插件侧 deadline 和确定性路由回退。
