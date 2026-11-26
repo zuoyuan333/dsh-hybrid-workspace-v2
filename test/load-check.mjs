@@ -25,6 +25,7 @@ ok('客户端按钮在会话头部而不是输入框下方', clientText.includes
 ok('客户端用完整地址解析聊天页 URL', clientText.includes('new URL("hybrid-workspace/shell", window.location.href)') && !clientText.includes('window.location.origin'));
 ok('客户端在 DSH 窗口内用 iframe 打开面板', clientText.includes('showPanelOverlay(href)') && clientText.includes('hybrid-workspace-overlay') && !clientText.includes('window.open('), clientText.match(/showPanelOverlay\([^)]*\)/)?.[0] ?? '');
 ok('客户端保留同源导航兜底与浏览器外开入口', clientText.includes('window.location.assign') && clientText.includes('__DSH_TRANSPORT__') && clientText.includes('浏览器打开'));
+ok('客户端面板顶栏可拖动窗口且按钮不被拖拽区吞掉', clientText.includes('data-window-drag') && clientText.includes('-webkit-app-region:drag') && clientText.includes('-webkit-app-region:no-drag') && clientText.includes('navigator.platform'));
 ok('package.json 声明 dsh.bundle（DSH 才会加载这个包）', pkg.dsh?.manifestVersion === 1 && typeof pkg.dsh?.bundle?.patch === 'string', JSON.stringify(pkg.dsh ?? null));
 const bundlePatchRel = pkg.dsh?.bundle?.patch;
 const bundlePatch = bundlePatchRel ? new URL('../' + bundlePatchRel.replace(/^\.\//, ''), import.meta.url) : null;
