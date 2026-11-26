@@ -61,6 +61,7 @@ try {
   ok('页面含全局档案/置顶/恢复', page.text.includes('全局档案') && page.text.includes('data-mem="pin"') && page.text.includes('data-mem="restore"'));
   ok('页面含导出/导入', page.text.includes('id="export"') && page.text.includes('id="import"'));
   ok('页面含策略与结论演变', page.text.includes('data-op="policy"') && page.text.includes('结论演变'));
+  ok('策略按钮在卡片标题行', /class="topic-actions">[^\n]*data-op="policy"/.test(page.text));
   ok('页面含试点会话隔离策略', page.text.includes('id="pol-iso"') && page.text.includes('独立子会话（实验）'));
   ok('页面含隔离状态文案', page.text.includes('isolationPilot') && page.text.includes('仅提示词'));
   ok('页面 trace 含命中词', page.text.includes('命中词') && page.text.includes('问句词'));
