@@ -36,5 +36,18 @@ ok('备份失败错误可读', String(backupFailure?.message).includes('备份�
 ok('原损坏状态未被覆盖', readFileSync(join(dirFail, 'state.json'), 'utf8') === original);
 ok('未生成新的空状态', !(() => { try { return JSON.parse(readFileSync(join(dirFail, 'state.json'), 'utf8')).version === 2; } catch { return false; } })());
 
+// 未来 schema 不能 normalize 成 v2 后覆盖；旧代码必须停下并保留原文件。
+const homeFuture = mkdtempSync(join(tmpdir(), 'hw-v2-future-'));
+const dirFuture = join(homeFuture, 'hybrid-workspace-v2');
+mkdirSync(dirFuture, { recursive: true });
+const futureRaw = JSON.stringify({ version: 99, createdAt: 1, updatedAt: 2, workspaces: [], futureField: 'keep-me' }, null, 2);
+writeFileSync(join(dirFuture, 'state.json'), futureRaw, 'utf8');
+let futureFailure = null;
+try { await loadOrMigrate({ dshHome: homeFuture }); } catch (error) { futureFailure = error; }
+ok('未来版本状态拒绝加载', futureFailure?.code === 'STATE_VERSION_UNSUPPORTED', String(futureFailure?.message));
+ok('未来版本错误可读', String(futureFailure?.message).includes('99') && String(futureFailure?.message).includes('2'), String(futureFailure?.message));
+ok('未来版本原文件未被覆盖', readFileSync(join(dirFuture, 'state.json'), 'utf8') === futureRaw);
+ok('未来版本不生成损坏备份', !readdirSync(dirFuture).some(f => f.startsWith('state.json.corrupt-')), readdirSync(dirFuture).join(','));
+
 console.log(fails ? 'CORRUPT FAIL ' + fails : 'CORRUPT PASS');
 process.exit(fails ? 1 : 0);
