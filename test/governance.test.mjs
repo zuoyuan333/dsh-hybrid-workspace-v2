@@ -1,8 +1,7 @@
 import { createServer } from 'node:http';
 import { tempHome, makeCtx, sleep } from './fake-ctx.mjs';
-import { report, autoIds, workspaceFacts, DAY } from '../lib/governance.js';
+import { report, workspaceFacts, DAY } from '../lib/governance.js';
 import { createWorkspace } from '../lib/router.js';
-import { isLoopbackShellUrl, launchShell } from '../lib/shell-os.js';
 
 let fails = 0;
 const ok = (name, cond, detail = '') => {
@@ -32,11 +31,10 @@ const r = report({
   cfg: { activeLimit: 12, governanceEmptyTtlMs: 7 * DAY, governanceStaleMs: 30 * DAY },
   now,
 });
-ok('空壳满 7 天进入自动归档', r.auto.some(x => x.id === 'empty' && x.reason === 'empty-shell'), JSON.stringify(r.auto.map(x => [x.id, x.reason])));
-ok('无会话且有内容满 30 天进入自动归档', r.auto.some(x => x.id === 'stale' && x.reason === 'stale'), JSON.stringify(r.auto.map(x => [x.id, x.reason])));
+ok('空壳满 7 天标记为可归档', r.auto.some(x => x.id === 'empty' && x.reason === 'empty-shell'), JSON.stringify(r.auto.map(x => [x.id, x.reason])));
+ok('无会话且有内容满 30 天标记为可归档', r.auto.some(x => x.id === 'stale' && x.reason === 'stale'), JSON.stringify(r.auto.map(x => [x.id, x.reason])));
 ok('低活跃只给建议不自动归档', r.review.some(x => x.id === 'low' && x.reason === 'low-activity') && !r.auto.some(x => x.id === 'low'), JSON.stringify(r.review.map(x => [x.id, x.reason])));
 ok('同名工作区只给合并建议', r.duplicates.length === 1 && r.duplicates[0].id === 'dup-b' && r.duplicates[0].suggestedInto.id === 'dup-a', JSON.stringify(r.duplicates[0]));
-ok('autoIds 只返回自动归档项', autoIds(r).length === 2 && autoIds(r).includes('empty') && autoIds(r).includes('stale'), JSON.stringify(autoIds(r)));
 ok('活跃会话计入 facts', workspaceFacts(dupA, sessions, now).sessions === 1 && workspaceFacts(dupA, sessions, now).lastActiveAt === now - 1000, JSON.stringify(workspaceFacts(dupA, sessions, now)));
 
 const many = [
@@ -47,12 +45,12 @@ const many = [
 const r2 = report({ workspaces: many, sessions: { a: { workspaceId: 'm1', routedAt: now - 30 * DAY }, b: { workspaceId: 'm2', routedAt: now - 2 * DAY }, c: { workspaceId: 'm3', routedAt: now - 1 * DAY } }, cfg: { activeLimit: 2 }, now });
 ok('超出上限只建议最久未用', r2.overLimit.length === 1 && r2.overLimit[0].id === 'm1' && r2.review.some(x => x.id === 'm1' && x.reason === 'over-limit'), JSON.stringify(r2.overLimit.map(x => x.id)));
 
-// 2) 插件自动扫描：空壳被归档，来源标记 governance-empty。
+// 2) 插件扫描只给建议：空壳不被自动归档，但出现在 candidates 中。
 process.env.DSH_HOME = tempHome();
 const { apply } = await import('../lib/index.js');
 const ctx = makeCtx({ webServer: false });
 const plugin = apply(ctx, {
-  debug: false, disableProcessHook: true, sweepIntervalMs: 0, governanceSweepIntervalMs: 0,
+  debug: false, disableProcessHook: true, sweepIntervalMs: 0,
   governanceEmptyTtlMs: 7 * DAY, governanceStaleMs: 30 * DAY,
 });
 await plugin.snapshot();
@@ -60,17 +58,15 @@ const oldShell = createWorkspace('旧空壳');
 oldShell.createdAt = oldShell.updatedAt = now - 10 * DAY;
 plugin.state.workspaces.push(oldShell);
 const snap = await plugin.snapshot();
-ok('自动扫描移除空壳', !snap.workspaces.some(w => w.id === oldShell.id), JSON.stringify(snap.workspaces.map(w => w.name)));
-ok('自动归档保留来源', snap.archives.some(a => a.id === oldShell.id && a.reason === 'governance-empty'), JSON.stringify(snap.archives.map(a => [a.id, a.reason])));
+ok('治理不再自动归档空壳', snap.workspaces.some(w => w.id === oldShell.id), JSON.stringify(snap.workspaces.map(w => w.name)));
+ok('空壳仍进入治理建议', snap.governance && snap.governance.candidates.some(x => x.id === oldShell.id && x.reason === 'empty-shell'), JSON.stringify(snap.governance?.candidates?.map(x => [x.id, x.reason])));
+ok('没有生成治理归档记录', !snap.archives.some(a => a.id === oldShell.id), JSON.stringify(snap.archives.map(a => [a.id, a.reason])));
 ok('快照暴露治理报告', snap.governance && typeof snap.governance.total === 'number' && Array.isArray(snap.governance.candidates), JSON.stringify(snap.governance?.counts));
 
 // 3) 手动批量归档 + /shell 页面。
 process.env.DSH_HOME = tempHome();
 const ctx2 = makeCtx({ webServer: true });
-const plugin2 = apply(ctx2, {
-  debug: false, disableProcessHook: true, sweepIntervalMs: 0,
-  governanceEnabled: false, governanceAutoArchive: false,
-});
+const plugin2 = apply(ctx2, { debug: false, disableProcessHook: true, sweepIntervalMs: 0 });
 await plugin2.snapshot();
 const manual = createWorkspace('手动治理区');
 manual.createdAt = manual.updatedAt = now - 2 * DAY;
@@ -91,18 +87,13 @@ try {
   ok('手动归档后工作区消失且归档保留', !after.workspaces.some(w => w.id === manual.id) && after.archives.some(a => a.id === manual.id && a.reason === 'governance'), JSON.stringify(after.archives.map(a => a.reason)));
   const shell = await fetch(base + '/shell/');
   const shellText = await shell.text();
-  ok('/shell 返回面板页', shell.status === 200 && shellText.includes('const SHELL') && shellText.includes('id="open-shell"'), String(shell.status));
+  ok('/shell 返回面板页', shell.status === 200 && shellText.includes('const SHELL') && shellText.includes('id="chat"'), String(shell.status));
   const shellApi = await fetch(base + '/api').then(r => r.json());
   ok('/shell 仍使用同一 API', Array.isArray(shellApi.workspaces), JSON.stringify(shellApi.workspaces?.length));
 } finally {
   await new Promise(resolve => server.close(resolve));
 }
 
-// 4) 独立壳 URL 白名单与未构建回退。
-ok('回环 shell URL 允许', isLoopbackShellUrl('http://127.0.0.1:1234/hybrid-workspace/shell') && isLoopbackShellUrl('http://localhost:1234/hybrid-workspace/shell/'), 'loopback');
-ok('非回环/非 shell 路径拒绝', !isLoopbackShellUrl('https://evil.example/hybrid-workspace/shell') && !isLoopbackShellUrl('http://127.0.0.1:1234/other'), 'reject');
-const missing = launchShell({ url: 'http://127.0.0.1:1234/hybrid-workspace/shell', appPath: '/definitely/missing/HybridWorkspaceShell.app' });
-ok('未构建时明确失败而不伪造启动', missing.ok === false && /未构建/.test(missing.error || ''), JSON.stringify(missing));
 
 console.log(fails ? 'GOVERNANCE FAIL ' + fails : 'GOVERNANCE PASS');
 process.exit(fails ? 1 : 0);

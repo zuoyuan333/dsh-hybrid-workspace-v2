@@ -1,7 +1,7 @@
 {
   "name": "dsh-hybrid-workspace-v2",
-  "version": "2.6.4",
-  "description": "单聊天框 + 多工作区上下文路由 v2.6.4：入口两跳确认、工作区绑定的收件箱子会话、状态保存失败可见性、隐私可控的混合路由、P3 独立壳聊天页与工作区治理、每区策略、导出导入（含全局档案与来源链）、trace 解释、迁移逐条勾选、结论演变、连续问句拆段",
+  "version": "2.7.0",
+  "description": "单聊天框 + 多工作区上下文路由 v2.7.0：入口两跳确认、工作区绑定的收件箱子会话（实验）、状态保存失败可见性、隐私可控的混合路由、工作区治理建议、每区策略、导出导入（含全局档案与来源链）、trace 解释、迁移逐条勾选、结论演变、连续问句拆段",
   "type": "module",
   "license": "MIT",
   "repository": {
@@ -24,16 +24,14 @@
     }
   },
   "scripts": {
-    "test": "node test/all.mjs",
-    "build-shell": "scripts/build-shell-macos.sh"
+    "test": "node test/all.mjs"
   },
   "files": [
     "lib",
     "cordis.patch.yml",
     "README.md",
     "docs",
-    "scripts",
-    "shell"
+    "scripts"
   ],
   "peerDependencies": {
     "@deepseek-ai/cordis": ">=4.0.2 <5.0.0"

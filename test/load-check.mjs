@@ -17,7 +17,7 @@ ok('只声明 systemPrompt 为必需注入', Array.isArray(mod.inject) && mod.in
 ok('apply 是函数', typeof mod.apply === 'function');
 ok('DEFAULTS 可读且有关键项', mod.DEFAULTS && mod.DEFAULTS.routeAccept > 0 && mod.DEFAULTS.contextMaxChars > 0);
 ok('入口上限与归档保留已调整', mod.DEFAULTS.activeLimit === 12 && mod.DEFAULTS.archiveKeep >= 200, JSON.stringify({ activeLimit: mod.DEFAULTS.activeLimit, archiveKeep: mod.DEFAULTS.archiveKeep }));
-ok('版本号已升到 2.6.4', pkg.version === '2.6.4', pkg.version);
+ok('版本号已升到 2.7.0', pkg.version === '2.7.0', pkg.version);
 ok('声明 lib 深导入与 npm test', pkg.exports?.['./lib/*'] === './lib/*' && pkg.scripts?.test === 'node test/all.mjs', JSON.stringify({ exports: pkg.exports?.['./lib/*'], test: pkg.scripts?.test }));
 ok('声明浏览器半边与工作区按钮', pkg.exports?.['./client']?.default === './lib/client.js' && pkg.dsh?.client?.platform === 'web' && existsSync(new URL('../lib/client.js', import.meta.url)), JSON.stringify({ client: pkg.exports?.['./client'], dshClient: pkg.dsh?.client }));
 const clientText = existsSync(new URL('../lib/client.js', import.meta.url)) ? readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8') : '';
