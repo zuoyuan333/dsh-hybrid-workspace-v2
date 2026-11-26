@@ -35,12 +35,13 @@ async function req (path, opts) {
 try {
   const page = await req('');
   ok('面板 200', page.status === 200, String(page.status));
-  ok('页面标题 v2.6.3', page.text.includes('混合工作区') && page.text.includes('v2.6.3'));
+  ok('页面标题 v2.6.4', page.text.includes('混合工作区') && page.text.includes('v2.6.4'));
   ok('页面含记忆区块', page.text.includes('相关记忆') && page.text.includes('代表性问法'));
   ok('页面含路由 trace', page.text.includes('最近路由判定'));
   ok('页面含合并按钮', page.text.includes('data-op="merge"'));
   ok('页面含归档/删除按钮', page.text.includes('data-op="archive"') && page.text.includes('data-op="delete"'));
   ok('页面含独立壳入口', page.text.includes('id="open-shell"') && page.text.includes('/shell'));
+  ok('页面含保存失败横幅', page.text.includes('id="save-warning"') && page.text.includes('function renderSaveWarning') && page.text.includes('状态保存失败'));
   ok('独立壳是聊天式主界面', page.text.includes('id="chat"') && page.text.includes('id="chat-form"') && page.text.includes('function renderChat'));
   ok('全部管理功能收进单一入口', page.text.includes('id="drawer-toggle"') && page.text.includes('id="console-drawer"') && page.text.includes('function initShell') && page.text.includes('body.appendChild(header)'));
   ok('聊天发送进入收件箱并开始执行', page.text.includes("op: 'inboxAdd'") && page.text.includes("op: 'inboxRun', all: true"));
@@ -67,6 +68,7 @@ ok('页面体积正常', page.text.length > 7000, String(page.text.length));
 
   const api = await req('/api');
   ok('API 200 JSON', api.status === 200 && api.json && Array.isArray(api.json.workspaces), String(api.status));
+  ok('API 返回保存错误状态', api.json.saveError === null, JSON.stringify(api.json.saveError));
   const ws = api.json.workspaces[0];
   ok('API 返回工作区', api.json.workspaces.length === 1 && ws.name.includes('示范门店'), ws?.name);
   ok('API 返回结构化记忆', (ws.memories ?? []).length >= 1 && ws.memoryStats, JSON.stringify(ws.memoryStats));

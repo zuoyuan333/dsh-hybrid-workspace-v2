@@ -1,3 +1,4 @@
+import { rm, mkdir } from 'node:fs/promises';
 import { tempHome, makeCtx, firePre } from './fake-ctx.mjs';
 import { classifyLifecycle, normalizeMemory, sweepMemories, pinMemory, restoreMemory, remainingMs, endOfLocalDay } from '../lib/lifecycle.js';
 import { rememberText, retrieve } from '../lib/memory.js';
@@ -91,6 +92,20 @@ ok('snapshot 触发懒清扫', snap2.workspaces[0].memories.find(m => m.id === '
 await plugin.flush();
 const disk = JSON.parse(await (await import('node:fs/promises')).readFile(home + '/hybrid-workspace-v2/state.json', 'utf8'));
 ok('状态落盘包含 profile', Array.isArray(disk.profile) && disk.profile.length === 1, String(disk.profile?.length));
+
+// 8) 保存失败要可见；恢复后自动清除
+const statePath = home + '/hybrid-workspace-v2/state.json';
+await rm(statePath);
+await mkdir(statePath, { recursive: true });
+let saveFailure = null;
+try { await plugin.flush(); } catch (error) { saveFailure = error; }
+ok('保存失败会抛错', Boolean(saveFailure) && String(saveFailure.message).includes('状态保存失败'), String(saveFailure?.message));
+const failedSnap = await plugin.snapshot();
+ok('快照暴露保存失败', Boolean(failedSnap.saveError?.message) && Number(failedSnap.saveError?.at) > 0, JSON.stringify(failedSnap.saveError));
+await rm(statePath, { recursive: true, force: true });
+await plugin.flush();
+const recoveredSnap = await plugin.snapshot();
+ok('保存恢复后清除错误', recoveredSnap.saveError === null, JSON.stringify(recoveredSnap.saveError));
 
 console.log(fails ? 'LIFECYCLE FAIL ' + fails : 'LIFECYCLE PASS');
 process.exit(fails ? 1 : 0);

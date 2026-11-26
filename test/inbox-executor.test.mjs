@@ -23,6 +23,7 @@ function makeChildFactory (store) {
     let completed = false;
     let cancelled = null;
     let disposed = false;
+    let cancelEmitsTurn = true;
     const event = (type, data) => { events.push({ type, seq: ++seq, time: Date.now(), data }); };
     const wake = () => { completed = true; for (const resolve of idle.splice(0)) resolve(); };
     const agent = {
@@ -41,7 +42,7 @@ function makeChildFactory (store) {
         if (cancelled) return;
         cancelled = cause;
         store.cancelled.push({ sessionId: options.sessionId, cause });
-        if (!completed) { event('turn/end', { turn: 1, reason: 'aborted' }); wake(); }
+        if (!completed && cancelEmitsTurn) { event('turn/end', { turn: 1, reason: 'aborted' }); wake(); }
       },
     };
     const record = {
@@ -54,6 +55,8 @@ function makeChildFactory (store) {
         wake();
       },
       get cancelled () { return cancelled; },
+      get cancelEmitsTurn () { return cancelEmitsTurn; },
+      set cancelEmitsTurn (value) { cancelEmitsTurn = Boolean(value); },
       setDisposed () { disposed = true; record.disposed = true; },
       get isDisposed () { return disposed; },
     };
@@ -201,6 +204,16 @@ try {
   childA5.complete({ text: '取消后仍返回完成' });
   await sleep(150);
   ok('取消后不覆盖为 done', taskOf(await snap(), a5)?.status === 'cancelled', JSON.stringify(taskOf(await snap(), a5)));
+
+  const a5b = (await post({ op: 'inboxAdd', text: 'A 第五条之二：turn 前取消', workspaceId: wsA })).json.task.id;
+  await post({ op: 'inboxRun', all: true });
+  ok('turn 前取消测试子会话已起', await waitFor(() => Boolean(byTask('A 第五条之二'))), String(store.created.length));
+  const childA5b = byTask('A 第五条之二');
+  childA5b.cancelEmitsTurn = false;
+  const cancelBeforeTurn = await post({ op: 'inboxCancel', id: a5b });
+  ok('turn 前取消立即生效', cancelBeforeTurn.json?.task?.status === 'cancelled', JSON.stringify(cancelBeforeTurn.json));
+  ok('turn 前取消立即释放并发锁', await waitFor(async () => (await snap()).inboxConfig?.active === 0, 1000), JSON.stringify((await snap()).inboxConfig));
+  ok('turn 前取消释放子会话', await waitFor(() => childA5b?.isDisposed === true, 1000), String(childA5b?.isDisposed));
 
   const a6 = (await post({ op: 'inboxAdd', text: 'A 第六条：超时', workspaceId: wsA })).json.task.id;
   await post({ op: 'inboxRun', all: true });
