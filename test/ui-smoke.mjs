@@ -35,7 +35,7 @@ async function req (path, opts) {
 try {
   const page = await req('');
   ok('面板 200', page.status === 200, String(page.status));
-  ok('页面标题 v2.6.1', page.text.includes('混合工作区') && page.text.includes('v2.6.1'));
+  ok('页面标题 v2.6.3', page.text.includes('混合工作区') && page.text.includes('v2.6.3'));
   ok('页面含记忆区块', page.text.includes('相关记忆') && page.text.includes('代表性问法'));
   ok('页面含路由 trace', page.text.includes('最近路由判定'));
   ok('页面含合并按钮', page.text.includes('data-op="merge"'));

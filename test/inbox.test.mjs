@@ -116,7 +116,10 @@ try {
   const temp = await post({ op: 'create', name: '临时待删区' });
   const bad = await post({ op: 'inboxAdd', text: '任务所属工作区会被删掉', workspaceId: temp.json.id });
   const good = await post({ op: 'inboxAdd', text: '失败之后仍应继续', workspaceId: wsId });
-  await post({ op: 'delete', id: temp.json.id });
+  const blockedDelete = await post({ op: 'delete', id: temp.json.id });
+  ok('有排队任务时不能删除工作区', blockedDelete.status === 400 && String(blockedDelete.json?.error || '').includes('收件箱'), JSON.stringify(blockedDelete.json));
+  // 模拟工作区在外部被删除：保留任务，但目标区已不存在。
+  inst.state.workspaces = inst.state.workspaces.filter(w => w.id !== temp.json.id);
   const runFail = await post({ op: 'inboxRun', all: true });
   ok('顺序执行遇到坏区先标失败', runFail.status === 200 && runFail.json.failed === bad.json.task.id, JSON.stringify(runFail.json));
   await sleep(1500);
