@@ -125,6 +125,20 @@ try {
   await sleep(1500);
   const afterFail = await req('/api');
   ok('坏区失败后继续跑下一条', taskOf(afterFail, bad.json.task.id)?.status === 'failed' && taskOf(afterFail, good.json.task.id)?.status === 'done', JSON.stringify({ bad: taskOf(afterFail, bad.json.task.id)?.status, good: taskOf(afterFail, good.json.task.id)?.status }));
+
+  // 非 all 调用必须覆盖上一轮的 all 标志，不能继续把同区队列自动泵下去。
+  const flagA = await post({ op: 'inboxAdd', text: '标志测试 A', workspaceId: wsId });
+  const flagB = await post({ op: 'inboxAdd', text: '标志测试 B', workspaceId: wsId });
+  const flagRun = await post({ op: 'inboxRun', all: true });
+  ok('标志测试启动 A', flagRun.json.started === flagA.json.task.id, JSON.stringify(flagRun.json));
+  const flagStop = await post({ op: 'inboxRun', all: false });
+  ok('非 all 调用不报错', flagStop.status === 200 && !flagStop.json.error, JSON.stringify(flagStop.json));
+  await sleep(1500);
+  const flagAfter = await req('/api');
+  ok('非 all 调用停掉自动出队', taskOf(flagAfter, flagA.json.task.id)?.status === 'done' && taskOf(flagAfter, flagB.json.task.id)?.status === 'queued', JSON.stringify({ a: taskOf(flagAfter, flagA.json.task.id)?.status, b: taskOf(flagAfter, flagB.json.task.id)?.status }));
+  const flagResume = await post({ op: 'inboxRun', all: true });
+  ok('再次 all 继续 B', flagResume.json.started === flagB.json.task.id, JSON.stringify(flagResume.json));
+  await sleep(1500);
 } finally {
   await new Promise(resolve => server.close(resolve));
 }

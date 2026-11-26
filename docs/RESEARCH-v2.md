@@ -235,6 +235,7 @@ DSH 里有些插件会把提示以 role=user 的消息注入（例如 dsh-ops �
 - 状态文件版本高于当前支持的 schema 时拒绝加载并保留原文件，避免旧代码 normalize 后覆盖未来字段。
 - 状态文件损坏且备份失败时抛出 `STATE_BACKUP_FAILED`，停止用空状态覆盖原文件；只有备份成功才重建。
 - `waitForTurn` / `waitIdle` 同时响应截止时间和取消信号，turn 前取消立即释放收件箱并发锁与工作区锁，不再等到 `inboxTaskTimeoutMs`；超时与取消分别标记。
+- `inboxRun all=false` 会清除上一轮的连续出队标志，避免非 all 调用后仍把同区队列自动泵完。
 - 全量 21 套件通过，新增保存失败、备份失败、turn 前取消和保存横幅回归；面板内联脚本编译通过。
 
 ## 4. 未解决
