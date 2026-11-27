@@ -13,6 +13,7 @@ const SUITES = [
   'lifecycle.test.mjs',
   'memory.test.mjs',
   'migrate.test.mjs',
+  'naming.test.mjs',
   'reassign.test.mjs',
   'migration.test.mjs',
   'multi.test.mjs',
