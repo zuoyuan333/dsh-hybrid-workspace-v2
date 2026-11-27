@@ -82,6 +82,17 @@ def host_pids_for(main_ids):
     return [pid for pid, ppid, cmd in ps_rows() if ppid in main_ids and HOST_MARKER in cmd]
 
 
+def app_process_pids(app: Path):
+    """Return the main process plus helpers/renderers inside this bundle."""
+    prefix = str(app) + os.sep
+    exe = str(app / EXE_REL)
+    return [
+        pid
+        for pid, _ppid, cmd in ps_rows()
+        if cmd == exe or cmd.startswith(prefix)
+    ]
+
+
 def pid_exists(pid: int) -> bool:
     try:
         os.kill(pid, 0)
@@ -340,6 +351,7 @@ def restart(args, app: Path, result_path: Path) -> int:
     name = app_name(app)
     old_main = main_pids(app)
     old_hosts = host_pids_for(old_main)
+    old_app_pids = app_process_pids(app)
     result = {
         "status": "starting",
         "app": str(app),
@@ -366,8 +378,23 @@ def restart(args, app: Path, result_path: Path) -> int:
                 force=args.force,
                 label="old desktop host",
             )
+        remaining_app = [pid for pid in old_app_pids if pid_exists(pid)]
+        if remaining_app:
+            terminate_processes(
+                remaining_app,
+                timeout=min(10.0, args.timeout),
+                force=args.force,
+                label="old app helpers",
+            )
     else:
         log("app is not running; launching")
+        if old_app_pids:
+            terminate_processes(
+                old_app_pids,
+                timeout=min(10.0, args.timeout),
+                force=args.force,
+                label="stale app processes",
+            )
 
     if args.settle > 0:
         # LaunchServices and Electron's single-instance socket can outlive the
@@ -429,12 +456,22 @@ def restart(args, app: Path, result_path: Path) -> int:
         remaining = [pid for pid in host_pids_for(new_main) if pid_exists(pid)]
         if remaining:
             terminate_processes(remaining, timeout=min(10.0, args.timeout), force=args.force, label="desktop host")
+        remaining_helpers = [pid for pid in app_process_pids(app) if pid_exists(pid)]
+        if remaining_helpers:
+            terminate_processes(
+                remaining_helpers,
+                timeout=min(10.0, args.timeout),
+                force=args.force,
+                label="app helpers",
+            )
         seen.update(new_main)
         time.sleep(args.settle)
         launch_app(app)
 
     result["newMainPids"] = new_main
     result["newHostPids"] = new_hosts
+    if new_hosts:
+        activate_app(name)
     log(f"new desktop host pid(s): {new_hosts}")
 
     probe = wait_for_page(new_hosts, args.ready_timeout)
