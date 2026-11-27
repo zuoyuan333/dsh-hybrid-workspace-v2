@@ -35,9 +35,10 @@ async function req (path, opts) {
 try {
   const page = await req('');
   ok('面板 200', page.status === 200, String(page.status));
-  ok('页面标题 v2.8.1', page.text.includes('混合工作区') && page.text.includes('v2.8.1'));
+  ok('页面标题 v2.8.2', page.text.includes('混合工作区') && page.text.includes('v2.8.2'));
   ok('页面含记忆区块', page.text.includes('相关记忆') && page.text.includes('代表性问法'));
   ok('页面含路由 trace', page.text.includes('最近路由判定'));
+  ok('页面 trace 含一键改派', page.text.includes('data-reassign-to=') && page.text.includes('data-reassign=') && page.text.includes('纠正'));
   ok('页面含合并按钮', page.text.includes('data-op="merge"'));
   ok('页面含归档/删除按钮', page.text.includes('data-op="archive"') && page.text.includes('data-op="delete"'));
   ok('页面不再含原生壳入口', !page.text.includes('id="open-shell"') && !page.text.includes('op: \'openShell\''));
