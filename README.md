@@ -157,4 +157,15 @@ node test/all.mjs            # 全部入口
 node test/all.mjs router     # 只跑名字含 router 的入口
 ```
 
+本地重启 DSH（会关闭当前窗口再重新打开，仅用于 macOS 桌面端开发）：
+
+```bash
+./scripts/restart-dsh.py --check              # 只显示当前 DSH 主进程和 host PID
+./scripts/restart-dsh.py --detach --delay 15  # 立即返回，15 秒后自动退出并重启
+./scripts/restart-dsh.py --dry-run            # 只打印计划，不动 App
+./scripts/restart-dsh.py --force              # 30 秒内没退出时强制结束
+```
+
+`--detach` 的日志写到 `~/.dsh/restart-dsh.log`，重启结果写到 `~/.dsh/restart-dsh-result.json`，会检查新进程的 `/hybrid-workspace/` 页面版本。这个脚本不参与插件运行时，也不改变工作区数据。
+
 更完整的设计记录和边界说明见 [docs/RESEARCH-v2.md](docs/RESEARCH-v2.md)。
