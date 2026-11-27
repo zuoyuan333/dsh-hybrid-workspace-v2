@@ -8,8 +8,10 @@ Usage:
   scripts/restart-dsh.py --force --timeout 20
 
 The detached form returns immediately, waits --delay seconds, quits the app,
-launches it again, and writes a result JSON. It is safe to call from inside a
-DSH session: the worker is started in a new session and outlives the old app.
+settles briefly, launches it again, and writes a result JSON. If the new main
+process exits during startup or never creates its desktop host, the worker
+retries once. It is safe to call from inside a DSH session: the worker is
+started in a new session and outlives the old app.
 """
 
 from __future__ import annotations
@@ -30,6 +32,7 @@ DEFAULT_LOG = Path.home() / ".dsh" / "restart-dsh.log"
 DEFAULT_RESULT = Path.home() / ".dsh" / "restart-dsh-result.json"
 EXE_REL = Path("Contents/MacOS/DeepSeek Harness")
 HOST_MARKER = "dsh-desktop-host/lib/index.js"
+MAIN_STABLE_SECONDS = 1.5
 
 
 def stamp() -> str:
@@ -184,6 +187,39 @@ def wait_new_host(main_ids, timeout: float):
     return []
 
 
+def wait_main_stable(main_ids, seconds: float):
+    """Return the pids that survive a short startup window."""
+    deadline = time.monotonic() + max(0.0, seconds)
+    while time.monotonic() < deadline:
+        if not any(pid_exists(pid) for pid in main_ids):
+            return []
+        time.sleep(0.25)
+    return [pid for pid in main_ids if pid_exists(pid)]
+
+
+def launch_app(app: Path) -> None:
+    log(f"opening {app}")
+    try:
+        result = run(["/usr/bin/open", "-a", str(app)], timeout=20)
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError("open -a timed out") from exc
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout or "open failed").strip()
+        raise RuntimeError(f"cannot launch app: {detail}")
+
+
+def activate_app(name: str) -> None:
+    try:
+        result = run([
+            "osascript", "-e", f'tell application "{name}" to activate'
+        ], timeout=10)
+        if result.returncode != 0:
+            detail = (result.stderr or result.stdout or "activate failed").strip()
+            log(f"activate failed: {detail}")
+    except (OSError, subprocess.SubprocessError) as exc:
+        log(f"activate error: {exc}")
+
+
 def port_for_pid(pid: int):
     try:
         result = run(
@@ -279,6 +315,8 @@ def schedule(args, app: Path):
         "--delay", str(args.delay),
         "--timeout", str(args.timeout),
         "--ready-timeout", str(args.ready_timeout),
+        "--settle", str(args.settle),
+        "--attempts", str(args.attempts),
         "--log", str(log_path),
         "--result", str(result_path),
     ]
@@ -331,16 +369,71 @@ def restart(args, app: Path, result_path: Path) -> int:
     else:
         log("app is not running; launching")
 
-    launch = run(["/usr/bin/open", "-a", str(app)], timeout=20)
-    if launch.returncode != 0:
-        detail = (launch.stderr or launch.stdout or "open failed").strip()
-        raise RuntimeError(f"cannot launch app: {detail}")
+    if args.settle > 0:
+        # LaunchServices and Electron's single-instance socket can outlive the
+        # old main process by a fraction of a second. Launching too early used
+        # to create a short-lived "ghost" main process with no desktop host.
+        log(f"settling {args.settle:g}s after the old app exited")
+        time.sleep(args.settle)
 
-    new_main = wait_new_main(old_main, app, args.ready_timeout)
+    launch_app(app)
+    seen = set(old_main)
+    new_main = []
+    new_hosts = []
+    attempts = max(1, args.attempts)
+    for attempt in range(1, attempts + 1):
+        try:
+            candidate = wait_new_main(seen, app, args.ready_timeout)
+        except RuntimeError as exc:
+            log(f"launch attempt {attempt}/{attempts}: {exc}")
+            if attempt >= attempts:
+                raise
+            log(f"retrying launch in {args.settle:g}s")
+            time.sleep(args.settle)
+            launch_app(app)
+            continue
+        seen.update(candidate)
+        log(f"new main pid(s): {candidate} (attempt {attempt}/{attempts})")
+        stable = wait_main_stable(candidate, MAIN_STABLE_SECONDS)
+        if not stable:
+            log(f"new main pid(s) {candidate} exited during startup")
+            if attempt >= attempts:
+                result["newMainPids"] = candidate
+                result["newHostPids"] = []
+                result["page"] = {"ok": False, "url": None, "version": None}
+                result["status"] = "failed"
+                result["error"] = "the relaunched app exited before creating a desktop host"
+                result["elapsedSeconds"] = round(time.monotonic() - started, 2)
+                write_result(result_path, result)
+                return 1
+            log(f"retrying launch in {args.settle:g}s")
+            time.sleep(args.settle)
+            launch_app(app)
+            continue
+
+        new_main = stable
+        new_hosts = wait_new_host(new_main, args.ready_timeout)
+        if new_hosts:
+            break
+
+        log(f"desktop host did not start for main {new_main}; trying activate")
+        activate_app(name)
+        new_hosts = wait_new_host(new_main, min(10.0, args.ready_timeout))
+        if new_hosts:
+            break
+
+        if attempt >= attempts:
+            break
+        log("relaunching after host startup failure")
+        quit_app(new_main, name, args.timeout, args.force)
+        remaining = [pid for pid in host_pids_for(new_main) if pid_exists(pid)]
+        if remaining:
+            terminate_processes(remaining, timeout=min(10.0, args.timeout), force=args.force, label="desktop host")
+        seen.update(new_main)
+        time.sleep(args.settle)
+        launch_app(app)
+
     result["newMainPids"] = new_main
-    log(f"new main pid(s): {new_main}")
-
-    new_hosts = wait_new_host(new_main, args.ready_timeout)
     result["newHostPids"] = new_hosts
     log(f"new desktop host pid(s): {new_hosts}")
 
@@ -366,6 +459,8 @@ def main(argv=None) -> int:
     parser.add_argument("--delay", type=float, default=3.0, help="seconds to wait before quitting (detached mode)")
     parser.add_argument("--timeout", type=float, default=30.0, help="seconds to wait for the old app to exit")
     parser.add_argument("--ready-timeout", type=float, default=30.0, help="seconds to wait for the new app/page")
+    parser.add_argument("--settle", type=float, default=3.0, help="seconds to wait after the old app exits")
+    parser.add_argument("--attempts", type=int, default=2, help="launch attempts when the first process exits early")
     parser.add_argument("--force", action="store_true", help="SIGKILL if graceful quit times out")
     parser.add_argument("--detach", action="store_true", help="return immediately and restart in the background")
     parser.add_argument("--dry-run", action="store_true", help="show the plan without touching the app")
@@ -374,6 +469,10 @@ def main(argv=None) -> int:
     parser.add_argument("--result", default=str(DEFAULT_RESULT), help=argparse.SUPPRESS)
     parser.add_argument("--worker", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
+    if args.settle < 0:
+        parser.error("--settle must be zero or greater")
+    if args.attempts < 1:
+        parser.error("--attempts must be at least 1")
 
     app = Path(args.app).expanduser()
     if not app.is_absolute():

@@ -166,6 +166,6 @@ node test/all.mjs router     # 只跑名字含 router 的入口
 ./scripts/restart-dsh.py --force              # 30 秒内没退出时强制结束
 ```
 
-`--detach` 的日志写到 `~/.dsh/restart-dsh.log`，重启结果写到 `~/.dsh/restart-dsh-result.json`，会检查新进程的 `/hybrid-workspace/` 页面版本。这个脚本不参与插件运行时，也不改变工作区数据。
+`--detach` 的日志写到 `~/.dsh/restart-dsh.log`，重启结果写到 `~/.dsh/restart-dsh-result.json`，会检查新进程的 `/hybrid-workspace/` 页面版本。旧 App 完全退出后会先等待 3 秒再启动，避开 LaunchServices 和 Electron 单实例锁的残余；如果新主进程启动后很快退出，或没有拉起桌面 host，会自动重试一次。结果里的 `newMainPids`、`newHostPids` 和 `page` 会记录每次尝试的实际情况。这个脚本不参与插件运行时，也不改变工作区数据。
 
 更完整的设计记录和边界说明见 [docs/RESEARCH-v2.md](docs/RESEARCH-v2.md)。
